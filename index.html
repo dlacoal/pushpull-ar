@@ -95,6 +95,23 @@
   #toast{position:fixed;left:50%;top:44%;transform:translate(-50%,-50%);z-index:60;background:var(--glass);color:#fff;font-size:17px;font-weight:600;
     padding:14px 22px;border-radius:12px;opacity:0;transition:opacity .25s;pointer-events:none}
   #toast.on{opacity:1}
+  .primary span{text-align:left}
+  .seg button,.tool,#btnPlace{white-space:nowrap}
+  #bar{flex-wrap:wrap;justify-content:center;max-width:calc(100vw - 150px)}
+  #inSeg{position:absolute;left:max(66px,calc(env(safe-area-inset-left) + 54px));bottom:max(16px,env(safe-area-inset-bottom))}
+  .secondary{border:1px solid var(--ink);color:var(--ink);font-size:16px;font-weight:700;padding:15px 22px;border-radius:10px;text-align:left}
+  .choice{display:flex;flex-direction:column;gap:10px}
+  .primary small,.secondary small{display:block;font-size:13px;font-weight:500;opacity:.7;margin-top:3px}
+  #forceBox{top:max(112px,calc(env(safe-area-inset-top) + 100px));right:max(14px,env(safe-area-inset-right));background:rgba(255,255,255,.94);border-radius:12px;padding:10px 16px 12px;min-width:120px}
+  #forceBox small{display:block;font-size:12px;color:var(--muted);font-weight:600;letter-spacing:.04em;margin-bottom:8px}
+  .meter{height:10px;border-radius:5px;background:#e6e2da;overflow:hidden}
+  .meter i{display:block;height:100%;width:0;background:var(--ink);border-radius:5px;transition:width .08s}
+  #forceWord{display:block;margin-top:6px;font-size:15px;font-weight:700}
+  #handLayer{position:fixed;inset:0;z-index:4;pointer-events:none}
+  #handCam{position:fixed;right:max(14px,env(safe-area-inset-right));bottom:84px;width:200px;border-radius:12px;z-index:6;transform:scaleX(-1);box-shadow:0 6px 20px rgba(0,0,0,.25);pointer-events:none}
+  #handCursor{position:fixed;z-index:6;width:64px;height:64px;margin:-32px 0 0 -32px;border-radius:50%;border:3px solid #fff;pointer-events:none;
+    box-shadow:0 0 0 2px rgba(0,0,0,.2);display:flex;align-items:center;justify-content:center;transition:background .1s}
+  #handCursor b{position:absolute;top:70px;white-space:nowrap;color:#fff;font-size:14px;font-weight:700;padding:3px 8px;border-radius:6px;background:var(--glass)}
   #ver{position:fixed;right:10px;bottom:4px;z-index:70;font-size:11px;color:rgba(0,0,0,.4);pointer-events:none}
 </style>
 <script type="importmap">
@@ -107,10 +124,14 @@
 <body>
 <video id="bgVideo" playsinline muted autoplay class="hidden"></video>
 <canvas id="three"></canvas>
+<canvas id="handLayer" class="hidden"></canvas>
+<video id="handCam" playsinline muted autoplay class="hidden"></video>
+<div id="handCursor" class="hidden"><b></b></div>
 
 <div id="overlay" class="hidden">
   <div id="caption" class="hud">교실 바닥을 비춰 주세요</div>
   <div id="distBox" class="hud hidden"><small>나와의 거리</small><b id="distVal">-</b><span id="distDelta"></span></div>
+  <div id="forceBox" class="hud hidden"><small>힘의 크기</small><div class="meter"><i id="forceFill"></i></div><span id="forceWord">-</span></div>
   <div id="reticleHint" class="hidden"></div>
   <div id="fingerTag" class="hidden"></div>
   <div id="logPanel" class="hidden">
@@ -118,6 +139,10 @@
     <div class="tally"><span>밀기<b id="nPush">0</b></span><span>당기기<b id="nPull">0</b></span></div>
     <ul id="logList"><li class="empty">물체를 밀거나 당기면 여기에 기록돼요.</li></ul>
   </div>
+  <div class="seg" id="inSeg">
+      <button data-in="hand"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 13V5a1.5 1.5 0 0 1 3 0v6M11 11V3.5a1.5 1.5 0 0 1 3 0V11M14 11V5a1.5 1.5 0 0 1 3 0v8c0 4-2.5 7-6 7s-5-2-6.5-5L3 11.5a1.5 1.5 0 0 1 2.5-1.5L8 13"/></svg>손</button>
+      <button data-in="touch"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M10 14V5a2 2 0 0 1 4 0v6l4 1c1.5.4 2.3 1.9 1.8 3.4L18 21H10l-4-5c-.8-1 .2-2.6 1.5-2l2.5 1"/></svg>손가락</button>
+    </div>
   <div id="bar">
     <button class="tool" id="btnLog"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h11l3 3v13H5z"/><path d="M8 10h8M8 14h8M8 18h5"/></svg>기록</button>
     <div class="seg" id="objSeg">
@@ -136,13 +161,16 @@
       <div class="eyebrow">과학 실험 · 물체의 움직임</div>
       <h1><em>밀고</em> <i>당기기</i></h1>
     </div>
-    <p class="lead">태블릿으로 교실 바닥을 비추면 의자, 책상, 문이 나타나요. 손가락으로 직접 밀고 당기면서, 물체가 나에게서 멀어지는지 가까워지는지 관찰해 보세요.</p>
+    <p class="lead">태블릿으로 교실 바닥을 비추면 의자, 책상, 문이 나타나요. 카메라 앞에서 내 손으로 직접 밀고 당기며, 힘을 세게 줄 때와 약하게 줄 때 물체가 얼마나 움직이는지 관찰해 보세요.</p>
     <ol class="steps">
       <li><b>1</b>교실 바닥 비추기</li>
       <li><b>2</b>물체를 놓을 곳 정하기</li>
-      <li><b>3</b>손가락으로 밀고 당기며 거리 재기</li>
+      <li><b>3</b>손으로 밀고 당기며 힘의 크기와 거리 비교하기</li>
     </ol>
-    <button class="primary" id="btnStart">실험 시작 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+    <div class="choice">
+      <button class="primary" id="btnStartHand"><span>손으로 밀고 당기기<small>카메라 앞에서 진짜 손을 움직여요</small></span><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M5 12h14M13 6l6 6-6 6"/></svg></button>
+      <button class="secondary" id="btnStartTouch">손가락으로 밀고 당기기<small>화면을 세게 누를수록 힘이 커져요</small></button>
+    </div>
     <div class="meta"><span id="modeNote">기기 확인 중</span><button class="link" id="btnTeacherGuide">교사용 안내</button></div>
   </div>
 </div>
@@ -181,6 +209,11 @@
   <h4>실행 방식</h4>
   <p>안드로이드 태블릿(크롬)은 실제 교실 바닥을 인식해 물체를 세웁니다. 학생이 걸어 다녀도 물체가 그 자리에 있습니다.
   아이패드는 카메라 화면 위에 물체를 띄우고, 기기를 돌리면 시점이 따라갑니다. 컴퓨터에서는 3D 교실 연습 화면이 열립니다.</p>
+  <h4>손으로 밀고 당기기</h4>
+  <p>태블릿은 뒤쪽 카메라 앞에 손을 넣어 화면 속 물체에 손을 대고, 손을 앞으로 뻗으면 밀기, 몸 쪽으로 당기면 당기기입니다. 손을 빠르게 움직일수록 힘이 커집니다.
+  컴퓨터는 웹캠에 손바닥을 보이고 화면 쪽으로 뻗으면 밀기입니다. 손 인식 도구는 cdn.jsdelivr.net, storage.googleapis.com 에서 불러오므로 학교망에서 이 두 주소가 열려 있어야 합니다.</p>
+  <h4>손가락으로 밀고 당기기</h4>
+  <p>물체를 꾹 누르고 있으면 힘이 모이고, 그대로 밀거나 당기면 모인 힘만큼 움직입니다. 펜이나 누르는 압력을 아는 기기에서는 실제로 세게 누를수록 힘이 커집니다.</p>
   <h4>앱 안의 잠금</h4>
   <p>전체화면으로 바뀌고 뒤로 가기, 길게 누르기, 확대가 막힙니다. 학생이 앱을 벗어나면 횟수가 기록됩니다.
   왼쪽 아래 자물쇠를 3초 동안 누르고 비밀번호(처음 값 1234)를 넣으면 교사 메뉴가 열립니다.</p>
@@ -217,7 +250,7 @@ const S = {
   phase:'start',           // start | placing | play
   objType:'chair', locked:false,
   leaves:+(safeGet('pp_leaves')||0), pin:safeGet('pp_pin') || String(C.pin||'1234'),
-  nPush:0, nPull:0,
+  nPush:0, nPull:0, input:'touch', switching:false,
 };
 const NAMES = { chair:['의자','의자를'], desk:['책상','책상을'], door:['문','문을'] };
 const EYE = C.eyeHeight ?? 1.15;
@@ -550,7 +583,7 @@ function thud(strength=.6){
    물체 상태 · 물리
    ========================================================= */
 let obj = null;
-const P = { v:0, dir:new THREE.Vector3(), angV:0, startD:0, tracking:false, lastD:0 };
+const P = { v:0, dir:new THREE.Vector3(), angV:0, startD:0, tracking:false, lastD:0, peakF:0 };
 
 function viewCam(){
   if (renderer.xr.isPresenting){ const c = renderer.xr.getCamera(); return c.cameras && c.cameras.length ? c.cameras[0] : c; }
@@ -575,12 +608,16 @@ function placeObject(pos){
   P.v = 0; P.angV = 0; P.tracking = false;
   S.phase = 'play';
   showPlayUI();
-  setCaption(S.objType === 'door'
-    ? '문에 손가락을 대고 앞으로 밀어 보세요. 내 쪽으로 끌면 당겨져요.'
-    : `${NAMES[S.objType][1]} 손가락으로 잡고 앞으로 밀거나, 내 쪽으로 당겨 보세요.`);
+  setCaption(playCaption());
   thud(.5);
 }
 
+function playCaption(){
+  if (S.input === 'hand') return H.front
+    ? `웹캠에 손바닥을 보여 주세요. 손을 ${NAMES[S.objType][0]}에 맞추고 화면 쪽으로 뻗으면 밀기, 몸 쪽으로 당기면 당기기예요.`
+    : `카메라 앞에 손을 넣어 ${NAMES[S.objType][0]}에 대 보세요. 앞으로 뻗으면 밀기, 내 쪽으로 당기면 당기기예요.`;
+  return `${NAMES[S.objType][1]} 꾹 누르면 힘이 모여요. 누른 채로 앞으로 밀거나 내 쪽으로 당겨 보세요.`;
+}
 function step(dt){
   if (arrow.visible){ arrow.userData.t -= dt; arrow.userData.mat.opacity = Math.max(0,Math.min(1,arrow.userData.t*2)); if (arrow.userData.t <= 0) arrow.visible = false; }
   if (!obj) { scrape(0); return; }
@@ -603,7 +640,7 @@ function step(dt){
       scrape(Math.abs(P.v));
     } else scrape(0);
   }
-  if (P.tracking && !drag && !P.v && !P.angV) finishMove();
+  if (P.tracking && !drag && !P.v && !P.angV && !H.driving) finishMove();
   if (S.phase === 'play') updateDist();
 }
 function clampDoor(){
@@ -634,8 +671,10 @@ function finishMove(){
   push ? S.nPush++ : S.nPull++;
   $('nPush').textContent = S.nPush; $('nPull').textContent = S.nPull;
   const what = S.objType === 'door' ? ' 문 손잡이가' : '';
-  addLog(`${NAMES[S.objType][1]} ${push?'밀었더니':'당겼더니'}${what} ${fmt(a)} → ${fmt(b)}, 나에게서 ${push?'멀어졌다':'가까워졌다'}.`, push);
-  setCaption(push ? '밀었더니 멀어졌어요. 이번에는 내 쪽으로 당겨 볼까요?' : '당겼더니 가까워졌어요. 이번에는 앞으로 밀어 볼까요?');
+  const fw = P.peakF < .34 ? '약한 힘' : P.peakF < .67 ? '보통 힘' : '센 힘';
+  addLog(`${fw}으로 ${NAMES[S.objType][1]} ${push?'밀었더니':'당겼더니'}${what} ${fmt(a)} → ${fmt(b)}, ${fmt(Math.abs(diff))} ${push?'멀어졌다':'가까워졌다'}.`, push);
+  const next = P.peakF >= .5 ? '이번에는 약하게' : '이번에는 세게';
+  setCaption(`${fw}으로 ${push?'밀었더니':'당겼더니'} ${fmt(Math.abs(diff))} ${push?'멀어졌어요':'가까워졌어요'}. ${next} ${push?'밀어서':'당겨서'} 비교해 볼까요?`);
   $('distDelta').textContent = '';
 }
 function updateDist(){
@@ -684,23 +723,40 @@ function doorAngleAt(fp){                     // 손가락이 가리키는 바�
   return Math.atan2(-z, Math.max(.05,x));
 }
 const ov = $('overlay'), tag = $('fingerTag');
+/* 누르는 세기: 압력(펜·지원 기기) → 손끝 닿는 면적 → 꾹 누르고 있는 시간 순으로 씀 */
+let pressureSeen = false;
+const HOLD_FULL = 1100;                                   // 1.1초 누르면 최대 힘
+function touchForce(e){
+  let f = 0;
+  if (e.pointerType === 'pen' || (e.pressure > 0 && e.pressure !== .5)) pressureSeen = true;
+  if (pressureSeen) f = Math.max(f, e.pressure || 0);
+  if (e.width > 1 && e.height > 1) f = Math.max(f, THREE.MathUtils.clamp((Math.sqrt(e.width*e.height) - 20)/30, 0, 1));
+  return f;
+}
+function dragForce(){
+  if (!drag) return 0;
+  const hold = drag.moved ? drag.holdF : Math.min(1, (performance.now() - drag.t0)/HOLD_FULL);
+  return THREE.MathUtils.clamp(Math.max(.12, drag.liveF, hold), 0, 1);
+}
 ov.addEventListener('pointerdown', e => {
   if (e.target.closest('button') || e.target.closest('#logPanel')) return;
   ov.setPointerCapture(e.pointerId);
   if (S.phase === 'play' && hitsObject(e.clientX, e.clientY)){
-    const h = obj.position.y, fp = floorPointAt(e.clientX, e.clientY, h + (S.objType === 'door' ? 0 : 0));
+    const fp = floorPointAt(e.clientX, e.clientY, obj.position.y);
     if (!fp) return;
-    const u = userPos(); u.y = h;
-    drag = { id:e.pointerId, fp0:fp, pos0:obj.position.clone(), dir:new THREE.Vector3().subVectors(obj.position,u).setY(0).normalize(),
-             last:performance.now(), lastS:0, vel:0, speed:0, x:e.clientX, y:e.clientY };
-    if (S.objType === 'door') { drag.a0 = obj.userData.hinge.rotation.y - doorAngleAt(fp); drag.lastA = obj.userData.hinge.rotation.y; }
+    const u = userPos(); u.y = obj.position.y;
+    drag = { id:e.pointerId, fp0:fp, dir:new THREE.Vector3().subVectors(obj.position,u).setY(0).normalize(),
+             last:performance.now(), t0:performance.now(), moved:false, holdF:0, liveF:touchForce(e), lastS:0, vel:0, speed:0, x:e.clientX, y:e.clientY };
+    if (S.objType === 'door') drag.lastFA = doorAngleAt(fp);
     P.v = 0; P.angV = 0;
-    if (!P.tracking){ P.tracking = true; P.startD = distNow(); }
+    if (!P.tracking){ P.tracking = true; P.startD = distNow(); P.peakF = 0; }
+    tag.textContent = '힘 모으는 중'; tag.style.background = 'var(--ink)';
+    tag.style.left = e.clientX+'px'; tag.style.top = e.clientY+'px'; tag.classList.remove('hidden');
     navigator.vibrate && navigator.vibrate(12);
     return;
   }
   if (S.mode === 'room' || (S.mode === 'cam' && !ori)) look = { id:e.pointerId, x:e.clientX, y:e.clientY, yaw:yawPitch.yaw, pitch:yawPitch.pitch };
-  else if (S.phase === 'play') setCaption(`${NAMES[S.objType][1]} 손가락으로 직접 눌러서 움직여 보세요.`);
+  else if (S.phase === 'play' && S.input === 'touch') setCaption(`${NAMES[S.objType][1]} 손가락으로 직접 눌러서 움직여 보세요.`);
 });
 ov.addEventListener('pointermove', e => {
   if (look && e.pointerId === look.id){
@@ -709,34 +765,44 @@ ov.addEventListener('pointermove', e => {
     return;
   }
   if (!drag || e.pointerId !== drag.id) return;
-  const now = performance.now(), dt = Math.max(1, now - drag.last)/1000;
+  const now = performance.now();
+  drag.liveF = Math.max(drag.liveF*.7, touchForce(e));
+  if (!drag.moved){
+    if (Math.hypot(e.clientX - drag.x, e.clientY - drag.y) < 10) return;     // 아직 힘 모으는 중
+    drag.moved = true; drag.holdF = Math.min(1, (now - drag.t0)/HOLD_FULL); drag.last = now;
+  }
+  const dt = Math.max(1, now - drag.last)/1000;
   const fp = floorPointAt(e.clientX, e.clientY, obj.position.y);
   if (!fp) return;
-  let moved;                                              // 이번 순간 멀어진(+) / 가까워진(-) 정도
+  const F = dragForce(), gain = .25 + 1.5*F;              // 힘이 셀수록 손가락보다 더 많이 움직임
+  P.peakF = Math.max(P.peakF, F);
+  let moved;
   if (S.objType === 'door'){
-    const hg = obj.userData.hinge, before = hg.rotation.y;
-    hg.rotation.y = doorAngleAt(fp) + drag.a0; clampDoor();
+    const hg = obj.userData.hinge, before = hg.rotation.y, fa = doorAngleAt(fp);
+    let dFA = fa - drag.lastFA; drag.lastFA = fa;
+    if (Math.abs(dFA) > 1) dFA = 0;
+    hg.rotation.y += dFA*gain; clampDoor();
     const dA = hg.rotation.y - before;
     drag.vel = THREE.MathUtils.lerp(drag.vel, dA/dt, .5);
     drag.speed = Math.abs(dA/dt)*obj.userData.W;
     moved = dA;
   } else {
-    const s = new THREE.Vector3().subVectors(fp, drag.fp0).dot(drag.dir);
+    const sF = new THREE.Vector3().subVectors(fp, drag.fp0).dot(drag.dir);
+    const dsF = sF - drag.lastS; drag.lastS = sF;
     const before = obj.position.clone();
-    obj.position.copy(drag.pos0).addScaledVector(drag.dir, s);
-    if (keepInBounds()) { drag.pos0.copy(obj.position).addScaledVector(drag.dir, -s); }
+    obj.position.addScaledVector(drag.dir, dsF*gain);
+    keepInBounds();
     const ds = new THREE.Vector3().subVectors(obj.position, before).dot(drag.dir);
     drag.vel = THREE.MathUtils.lerp(drag.vel, ds/dt, .5);
     drag.speed = Math.abs(ds/dt);
     moved = ds;
   }
   drag.last = now;
+  tag.style.left = e.clientX+'px'; tag.style.top = e.clientY+'px';
   if (Math.abs(moved) > .0005){
     const push = moved > 0;
     tag.textContent = push ? '미는 중' : '당기는 중';
     tag.style.background = push ? 'var(--push)' : 'var(--pull)';
-    tag.style.left = e.clientX+'px'; tag.style.top = e.clientY+'px';
-    tag.classList.remove('hidden');
     if (!arrow.visible || arrow.userData.push !== push){ showArrow(push); arrow.userData.push = push; }
     arrow.userData.t = .7;
   }
@@ -744,14 +810,156 @@ ov.addEventListener('pointermove', e => {
 function endPointer(e){
   if (look && e.pointerId === look.id) look = null;
   if (!drag || e.pointerId !== drag.id) return;
-  const idle = (performance.now() - drag.last) > 90;     // 멈췄다가 손을 떼면 관성 없음
-  if (S.objType === 'door') P.angV = idle ? 0 : THREE.MathUtils.clamp(drag.vel*.6, -4, 4);
-  else { P.dir.copy(drag.dir); P.v = idle ? 0 : THREE.MathUtils.clamp(drag.vel*.6, -2.2, 2.2); }
+  const idle = !drag.moved || (performance.now() - drag.last) > 90;
+  const k = .15 + .55*dragForce();                          // 약한 힘이면 손을 떼도 조금만 미끄러짐
+  if (S.objType === 'door') P.angV = idle ? 0 : THREE.MathUtils.clamp(drag.vel*k, -4, 4);
+  else { P.dir.copy(drag.dir); P.v = idle ? 0 : THREE.MathUtils.clamp(drag.vel*k, -2.6, 2.6); }
   drag = null;
   tag.classList.add('hidden');
 }
 ov.addEventListener('pointerup', endPointer);
 ov.addEventListener('pointercancel', endPointer);
+
+/* 힘 게이지 */
+let shownF = 0;
+function updateForce(){
+  const f = drag ? dragForce() : H.F;
+  shownF += (f - shownF)*.35;
+  $('forceFill').style.width = (shownF*100).toFixed(0)+'%';
+  $('forceFill').style.background = shownF < .34 ? '#8a8f97' : shownF < .67 ? 'var(--ink)' : 'var(--push)';
+  $('forceWord').textContent = shownF < .04 ? '-' : shownF < .34 ? '약하게' : shownF < .67 ? '보통' : '세게';
+}
+
+/* =========================================================
+   진짜 손으로 밀고 당기기 (카메라 손 인식)
+   - 손 크기가 작아지면 카메라에서 멀어지는 것(뒤쪽 카메라: 밀기)
+   - 손 크기가 커지면 카메라 쪽으로 오는 것(뒤쪽 카메라: 당기기)
+   - 웹캠(앞쪽 카메라)은 반대: 화면 쪽으로 뻗으면 손이 커짐 = 밀기
+   - 손을 빨리 움직일수록 센 힘
+   ========================================================= */
+const TV = 'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.2.3';
+const HAND_MODEL = C.handModel || 'https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task';
+const H = { on:false, lm:null, video:null, front:false, last:-1, logS:null, vel:0, t:0, seen:0, F:0, driving:false, stream:null };
+const hl = $('handLayer'), hctx = hl.getContext('2d'), cursor = $('handCursor');
+function sizeLayer(){ hl.width = innerWidth*devicePixelRatio; hl.height = innerHeight*devicePixelRatio; }
+sizeLayer(); addEventListener('resize', sizeLayer);
+async function loadHand(){
+  if (H.lm) return;
+  const { FilesetResolver, HandLandmarker } = await import(TV + '/vision_bundle.mjs');
+  const fs = await FilesetResolver.forVisionTasks(TV + '/wasm');
+  const opts = d => ({ baseOptions:{ modelAssetPath:HAND_MODEL, delegate:d }, runningMode:'VIDEO', numHands:1,
+                       minHandDetectionConfidence:.5, minHandPresenceConfidence:.5, minTrackingConfidence:.5 });
+  try { H.lm = await HandLandmarker.createFromOptions(fs, opts('GPU')); }
+  catch(e){ H.lm = await HandLandmarker.createFromOptions(fs, opts('CPU')); }
+}
+async function enableHand(){
+  S.input = 'hand'; updateInputUI();
+  const msg = '손 인식을 준비하고 있어요…';
+  if (S.phase === 'play') setCaption(msg); else toast(msg);
+  try {
+    if (S.mode === 'xr'){                                  // AR 화면은 카메라 영상을 줄 수 없어 카메라 모드로 바꿈
+      S.switching = true; const ss = renderer.xr.getSession(); if (ss) await ss.end();
+      renderer.xr.enabled = false; if (obj){ scene.remove(obj); obj = null; }
+      await startCam();
+    }
+    if (S.mode === 'cam'){ H.video = $('bgVideo'); H.front = false; }
+    else {
+      if (!H.stream) H.stream = await navigator.mediaDevices.getUserMedia({ video:{ facingMode:'user', width:{ ideal:640 } }, audio:false });
+      const v = $('handCam'); v.srcObject = H.stream; await v.play(); v.classList.remove('hidden');
+      H.video = v; H.front = true;
+    }
+    await loadHand();
+    H.on = true; H.logS = null; hl.classList.remove('hidden');
+    if (S.phase === 'play') setCaption(playCaption()); else toast('손 인식 준비 완료');
+  } catch(e){
+    console.warn(e); disableHand();
+    toast('손 인식을 시작할 수 없어 손가락으로 바꿨어요');
+  }
+}
+function disableHand(){
+  H.on = false; H.driving = false; H.F = 0; S.input = 'touch';
+  hl.classList.add('hidden'); cursor.classList.add('hidden'); $('handCam').classList.add('hidden');
+  updateInputUI();
+  if (S.phase === 'play') setCaption(playCaption());
+}
+function updateInputUI(){ document.querySelectorAll('#inSeg button').forEach(b => b.classList.toggle('sel', b.dataset.in === S.input)); }
+document.querySelectorAll('#inSeg button').forEach(b => b.addEventListener('click', () => {
+  if (b.dataset.in === S.input) return;
+  b.dataset.in === 'hand' ? enableHand() : disableHand();
+}));
+function handFrame(now){
+  if (!H.on || !H.lm || !H.video || H.video.readyState < 2) return;
+  if (H.video.currentTime === H.last) return;
+  H.last = H.video.currentTime;
+  let res; try { res = H.lm.detectForVideo(H.video, now); } catch(e){ return; }
+  feedHand(res && res.landmarks && res.landmarks[0], now);
+}
+function toScreen(p, vw, vh){
+  if (H.front) return { x:(1-p.x)*innerWidth, y:p.y*innerHeight };            // 웹캠: 거울처럼 화면 전체에
+  const sc = Math.max(innerWidth/vw, innerHeight/vh);
+  return { x:p.x*vw*sc + (innerWidth - vw*sc)/2, y:p.y*vh*sc + (innerHeight - vh*sc)/2 };
+}
+const BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];
+function objScreenRect(){
+  const b = new THREE.Box3().setFromObject(obj), cam = viewCam(), r = { x0:1e9, y0:1e9, x1:-1e9, y1:-1e9 };
+  for (const x of [b.min.x,b.max.x]) for (const y of [b.min.y,b.max.y]) for (const z of [b.min.z,b.max.z]){
+    const v = V(x,y,z).project(cam); if (v.z > 1) continue;
+    const sx = (v.x+1)/2*innerWidth, sy = (1-v.y)/2*innerHeight;
+    r.x0 = Math.min(r.x0,sx); r.x1 = Math.max(r.x1,sx); r.y0 = Math.min(r.y0,sy); r.y1 = Math.max(r.y1,sy);
+  }
+  return r;
+}
+function feedHand(lm, now){
+  const dpr = devicePixelRatio;
+  hctx.clearRect(0,0,hl.width,hl.height);
+  if (!lm){
+    if (now - H.seen > 350){ H.logS = null; H.vel = 0; H.F = 0; H.driving = false; cursor.classList.add('hidden'); }
+    return;
+  }
+  H.seen = now;
+  const vw = (H.video && H.video.videoWidth) || 640, vh = (H.video && H.video.videoHeight) || 480;
+  const pts = lm.map(p => toScreen(p, vw, vh));
+  hctx.lineWidth = 3*dpr; hctx.strokeStyle = 'rgba(255,255,255,.8)'; hctx.fillStyle = '#fff';
+  hctx.beginPath();
+  for (const [i,j] of BONES){ hctx.moveTo(pts[i].x*dpr, pts[i].y*dpr); hctx.lineTo(pts[j].x*dpr, pts[j].y*dpr); }
+  hctx.stroke();
+  for (const q of pts){ hctx.beginPath(); hctx.arc(q.x*dpr, q.y*dpr, 4*dpr, 0, 7); hctx.fill(); }
+  // 손바닥 중심과 크기
+  const palm = [0,5,9,13,17].reduce((a,i) => ({ x:a.x+pts[i].x/5, y:a.y+pts[i].y/5 }), { x:0, y:0 });
+  const d = (i,j) => Math.hypot((lm[i].x-lm[j].x)*vw, (lm[i].y-lm[j].y)*vh)/Math.max(vw,vh);
+  const size = d(0,9) + d(5,17);
+  const dt = Math.max(.016, (now - H.t)/1000); H.t = now;
+  const ls = Math.log(Math.max(size, 1e-4));
+  if (H.logS == null){ H.logS = ls; H.vel = 0; }
+  else {
+    const sm = H.logS + (ls - H.logS)*.55;
+    H.vel = H.vel*.55 + ((sm - H.logS)/dt)*.45; H.logS = sm;
+  }
+  const push = (H.front ? 1 : -1) * H.vel;                // + 밀기, - 당기기 (로그 크기 변화/초)
+  cursor.style.left = palm.x+'px'; cursor.style.top = palm.y+'px'; cursor.classList.remove('hidden');
+  let touching = false;
+  if (obj && S.phase === 'play'){
+    const r = objScreenRect(), pad = 40;
+    touching = palm.x > r.x0-pad && palm.x < r.x1+pad && palm.y > r.y0-pad && palm.y < r.y1+pad;
+  }
+  const DEAD = .35;
+  let F = 0;
+  if (touching && Math.abs(push) > DEAD){
+    const target = THREE.MathUtils.clamp((Math.abs(push) - DEAD)*1.7, 0, 2.6) * Math.sign(push);   // m/s
+    F = Math.min(1, Math.abs(target)/2.2);
+    if (!P.tracking){ P.tracking = true; P.startD = distNow(); P.peakF = 0; }
+    P.peakF = Math.max(P.peakF, F);
+    H.driving = true;
+    if (S.objType === 'door') P.angV = target/obj.userData.W;
+    else { const u = userPos(); u.y = obj.position.y; P.dir.subVectors(obj.position,u).setY(0).normalize(); P.v = target; }
+    const ps = target > 0;
+    if (!arrow.visible || arrow.userData.push !== ps){ showArrow(ps); arrow.userData.push = ps; }
+    arrow.userData.t = .7;
+  } else H.driving = false;
+  H.F = F;
+  cursor.style.background = !touching ? 'rgba(255,255,255,.15)' : F ? (push > 0 ? 'rgba(224,83,31,.55)' : 'rgba(31,111,224,.55)') : 'rgba(255,255,255,.35)';
+  cursor.querySelector('b').textContent = !touching ? (obj && S.phase === 'play' ? `손을 ${NAMES[S.objType][0]}에 대 보세요` : '') : F ? (push > 0 ? '미는 중' : '당기는 중') : `${NAMES[S.objType][0]}에 손이 닿았어요`;
+}
 
 /* 물체 고르기 */
 document.querySelectorAll('#objSeg button').forEach(b => b.addEventListener('click', () => {
@@ -782,7 +990,7 @@ function toast(t){ const el = $('toast'); el.textContent = t; el.classList.add('
    ========================================================= */
 function enterPlacing(){
   S.phase = 'placing';
-  $('btnPlace').classList.remove('hidden'); $('btnReplace').classList.add('hidden'); $('distBox').classList.add('hidden');
+  $('btnPlace').classList.remove('hidden'); $('btnReplace').classList.add('hidden'); $('distBox').classList.add('hidden'); $('forceBox').classList.add('hidden');
   $('reticleHint').classList.toggle('hidden', S.mode !== 'xr');
   setCaption(S.mode === 'xr' ? '태블릿을 천천히 움직이며 교실 바닥을 비춰 주세요.'
     : S.mode === 'room' ? '하얀 동그라미를 물체를 놓을 바닥에 맞추세요. 빈 곳을 끌면 둘러볼 수 있어요.'
@@ -790,7 +998,7 @@ function enterPlacing(){
 }
 function showPlayUI(){
   $('btnPlace').classList.add('hidden'); $('reticleHint').classList.add('hidden');
-  $('btnReplace').classList.remove('hidden'); $('distBox').classList.remove('hidden');
+  $('btnReplace').classList.remove('hidden'); $('distBox').classList.remove('hidden'); $('forceBox').classList.remove('hidden');
   reticle.visible = false;
 }
 $('btnPlace').addEventListener('click', () => {
@@ -810,7 +1018,7 @@ async function startXR(){
   await renderer.xr.setSession(session);
   xrRef = renderer.xr.getReferenceSpace();
   hitSource = await session.requestHitTestSource({ space: await session.requestReferenceSpace('viewer') });
-  session.addEventListener('end', () => { hitSource = null; if (S.locked) $('lockScreen').classList.remove('hidden'); else location.reload(); });
+  session.addEventListener('end', () => { hitSource = null; if (S.switching){ S.switching = false; return; } if (S.locked) $('lockScreen').classList.remove('hidden'); else location.reload(); });
   ov.classList.remove('hidden');
   enterPlacing();
 }
@@ -906,7 +1114,10 @@ function loop(time, frame){
     sun.position.set(obj.position.x+1.2, obj.position.y+3.2, obj.position.z+1.6);
     sun.target.position.copy(obj.position);
   } else shadowCatcher.visible = false;
+  handFrame(performance.now());
+  if (drag && !drag.moved){ const f = dragForce(); tag.textContent = f < .34 ? '힘 모으는 중' : f < .67 ? '힘 모으는 중 · 보통' : '힘 모으는 중 · 세게'; }
   step(dt);
+  if (S.phase === 'play') updateForce();
   renderer.render(scene, camera);
 }
 
@@ -923,14 +1134,17 @@ const coarse = matchMedia('(pointer:coarse)').matches;
 // 시작 화면 배경: 교실 속 의자
 setScene('room'); hero.visible = true; room.visible = true;
 
-$('btnStart').addEventListener('click', async () => {
+async function begin(input){
   audioInit();
   $('start').classList.add('hidden');
   lockOn(); wakeLock();
-  if (xrOK){ try { await startXR(); return; } catch(e){ console.warn(e); } }
+  if (input === 'touch' && xrOK){ try { await startXR(); updateInputUI(); return; } catch(e){ console.warn(e); } }
   await goFullscreen();
   if (coarse) await startCam(); else startRoom();
-});
+  if (input === 'hand') await enableHand(); else updateInputUI();
+}
+$('btnStartHand').addEventListener('click', () => begin('hand'));
+$('btnStartTouch').addEventListener('click', () => begin('touch'));
 
 /* =========================================================
    잠금장치
@@ -1003,7 +1217,7 @@ $('ver').textContent = C.version || '';
 if (Array.isArray(C.objects)) document.querySelectorAll('#objSeg button').forEach(b => { if (!C.objects.includes(b.dataset.obj)) b.remove(); });
 { const f = document.querySelector('#objSeg button'); if (f){ document.querySelectorAll('#objSeg button').forEach(x => x.classList.remove('sel')); f.classList.add('sel'); S.objType = f.dataset.obj; } }
 renderer.setAnimationLoop(loop);
-window.__pp = { S, P, placeObject, get obj(){ return obj; }, camera };
+window.__pp = { S, P, H, placeObject, feedHand, get obj(){ return obj; }, camera };
 </script>
 </body>
 </html>
